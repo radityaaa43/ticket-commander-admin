@@ -1,6 +1,5 @@
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { 
   Card, 
   CardContent, 
@@ -19,11 +18,11 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { List, Loader } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 const formSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -32,8 +31,7 @@ const formSchema = z.object({
 
 const Login = () => {
   const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
-  const navigate = useNavigate();
+  const { login } = useAuth();
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -45,18 +43,11 @@ const Login = () => {
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     setLoading(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Always login successfully in this demo
-    toast({
-      title: "Login successful",
-      description: "Welcome to the Internal Ticket Manager",
-    });
-    
-    setLoading(false);
-    navigate("/");
+    try {
+      await login(data.email, data.password);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -138,7 +129,7 @@ const Login = () => {
           </CardContent>
           <CardFooter>
             <p className="text-center text-sm text-muted-foreground w-full">
-              For demo purposes, you can use any email and password
+              For demo purposes, enter any valid email and password (8+ characters)
             </p>
           </CardFooter>
         </Card>
