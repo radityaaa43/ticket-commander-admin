@@ -1,4 +1,4 @@
-import { Ticket, LogEntry, DashboardStats, ApiResponse } from "./types";
+import { Ticket, LogEntry, DashboardStats, ApiResponse, TicketStatus } from "./types";
 
 // Generate random ID
 const generateId = () => Math.random().toString(36).substring(2, 10);
@@ -137,25 +137,48 @@ export const calculateDashboardStats = (tickets: Ticket[]): DashboardStats => {
   return stats;
 };
 
-// Mock API call to send ticket to OPS
+// Mock function to simulate sending a ticket to OPS system
 export const mockSendToOps = async (ticket: Ticket): Promise<ApiResponse> => {
-  // Simulate API delay
+  // Simulate API latency
   await new Promise(resolve => setTimeout(resolve, 1500));
   
-  // Simulate success/failure (80% success rate)
+  // For demo purposes, randomly succeed or fail (with 80% success rate)
   const isSuccess = Math.random() < 0.8;
   
   const response: ApiResponse = {
     success: isSuccess,
-    message: isSuccess ? 'Ticket successfully sent to OPS system' : 'Failed to send ticket to OPS system',
+    message: isSuccess 
+      ? `Ticket ${ticket.id} successfully sent to OPS system` 
+      : `Failed to send ticket ${ticket.id} to OPS system: Connection timeout`,
+    data: isSuccess ? { ticketId: ticket.id, opsReference: `OPS-${Date.now()}` } : null,
+    timestamp: new Date().toISOString(),
+  };
+  
+  return response;
+};
+
+// Mock function to simulate querying a ticket status from OPS system
+export const mockQueryTicketStatus = async (ticketId: string): Promise<ApiResponse> => {
+  // Simulate API latency
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // For demo purposes, randomly select one of the possible statuses for tickets that have been sent
+  const possibleStatuses: TicketStatus[] = ["sent", "in_progress", "closed", "delayed"];
+  const randomStatus = possibleStatuses[Math.floor(Math.random() * possibleStatuses.length)];
+  
+  // 90% success rate
+  const isSuccess = Math.random() < 0.9;
+  
+  const response: ApiResponse = {
+    success: isSuccess,
+    message: isSuccess 
+      ? `Successfully retrieved status for ticket ${ticketId}` 
+      : `Failed to retrieve status for ticket ${ticketId}: Service unavailable`,
     data: isSuccess ? { 
-      reference: generateId(), 
-      queue: ticket.priority === 'high' ? 'priority' : 'standard',
-      estimatedResponse: '24h',
-    } : { 
-      error: 'API server returned error code 503',
-      details: 'Service temporarily unavailable'
-    },
+      ticketId: ticketId, 
+      status: randomStatus,
+      lastUpdated: new Date().toISOString()
+    } : null,
     timestamp: new Date().toISOString(),
   };
   
@@ -172,6 +195,7 @@ export const mockData = {
   logs: mockLogs,
   stats: dashboardStats,
   sendToOps: mockSendToOps,
+  queryTicketStatus: mockQueryTicketStatus,
 };
 
 export default mockData;

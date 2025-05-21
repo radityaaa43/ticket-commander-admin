@@ -1,5 +1,4 @@
-
-export type TicketStatus = 'new' | 'pending' | 'sent' | 'failed';
+export type TicketStatus = 'new' | 'pending' | 'sent' | 'in_progress' | 'closed' | 'delayed' | 'failed';
 
 export interface Ticket {
   id: string;
@@ -39,5 +38,8 @@ export interface DashboardStats {
   new: number;
   pending: number;
   sent: number;
+  in_progress: number;
+  closed: number;
+  delayed: number;
   failed: number;
 }

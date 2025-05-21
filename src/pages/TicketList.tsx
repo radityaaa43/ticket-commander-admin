@@ -33,7 +33,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal, Send, ArrowRight } from "lucide-react";
+import { 
+  MoreHorizontal, 
+  Send, 
+  ArrowRight,
+  Circle,
+  Loader,
+  Check,
+  Clock,
+  X
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { Ticket } from "@/lib/types";
 
@@ -42,6 +51,9 @@ const StatusBadge = ({ status }: { status: Ticket["status"] }) => {
     new: "bg-ticket-new text-white",
     pending: "bg-ticket-pending text-white animate-pulse-slow",
     sent: "bg-ticket-sent text-white",
+    in_progress: "bg-primary text-primary-foreground",
+    closed: "bg-green-600 text-white",
+    delayed: "bg-amber-500 text-white",
     failed: "bg-ticket-failed text-white",
   };
   
@@ -49,11 +61,25 @@ const StatusBadge = ({ status }: { status: Ticket["status"] }) => {
     new: "New",
     pending: "Pending",
     sent: "Sent to OPS",
+    in_progress: "In Progress",
+    closed: "Closed",
+    delayed: "Delayed",
     failed: "Failed",
   };
 
+  const statusIcons = {
+    new: <Circle className="h-4 w-4 mr-1" />,
+    pending: <Loader className="h-4 w-4 mr-1 animate-spin" />,
+    sent: <Send className="h-4 w-4 mr-1" />,
+    in_progress: <Loader className="h-4 w-4 mr-1" />,
+    closed: <Check className="h-4 w-4 mr-1" />,
+    delayed: <Clock className="h-4 w-4 mr-1" />,
+    failed: <X className="h-4 w-4 mr-1" />,
+  };
+
   return (
-    <Badge className={variants[status]}>
+    <Badge className={`${variants[status]} flex items-center`}>
+      {statusIcons[status]}
       {labels[status]}
     </Badge>
   );
@@ -114,6 +140,9 @@ const TicketList = () => {
                 <SelectItem value="new">New</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="sent">Sent to OPS</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="closed">Closed</SelectItem>
+                <SelectItem value="delayed">Delayed</SelectItem>
                 <SelectItem value="failed">Failed</SelectItem>
               </SelectContent>
             </Select>
@@ -176,7 +205,7 @@ const TicketList = () => {
                                     View Details
                                   </Link>
                                 </DropdownMenuItem>
-                                {ticket.status !== "sent" && (
+                                {(ticket.status === "new" || ticket.status === "failed") && (
                                   <DropdownMenuItem>
                                     <Link 
                                       to={`/tickets/${ticket.id}`} 
@@ -184,6 +213,17 @@ const TicketList = () => {
                                     >
                                       <Send className="mr-2 h-4 w-4" />
                                       Send to OPS
+                                    </Link>
+                                  </DropdownMenuItem>
+                                )}
+                                {(ticket.status === "sent" || ticket.status === "in_progress" || ticket.status === "delayed") && (
+                                  <DropdownMenuItem>
+                                    <Link 
+                                      to={`/tickets/${ticket.id}`} 
+                                      className="flex items-center w-full"
+                                    >
+                                      <Loader className="mr-2 h-4 w-4" />
+                                      Query Status
                                     </Link>
                                   </DropdownMenuItem>
                                 )}

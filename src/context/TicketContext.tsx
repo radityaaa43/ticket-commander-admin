@@ -1,6 +1,6 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import mockData, { mockSendToOps } from "@/lib/mockData";
+import mockData, { mockSendToOps, mockQueryTicketStatus } from "@/lib/mockData";
 import { Ticket, LogEntry, ApiResponse, DashboardStats } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 
@@ -12,6 +12,7 @@ interface TicketContextType {
   getTicket: (id: string) => Ticket | undefined;
   getTicketLogs: (id: string) => LogEntry[];
   sendTicketToOps: (ticket: Ticket) => Promise<ApiResponse>;
+  queryTicketStatus: (id: string) => Promise<ApiResponse>;
   updateTicketStatus: (id: string, status: Ticket["status"]) => void;
   addLogEntry: (log: Omit<LogEntry, "id">) => void;
 }
@@ -26,6 +27,9 @@ export const TicketProvider = ({ children }: { children: ReactNode }) => {
     new: 0,
     pending: 0,
     sent: 0,
+    in_progress: 0,
+    closed: 0,
+    delayed: 0,
     failed: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -100,10 +104,11 @@ export const TicketProvider = ({ children }: { children: ReactNode }) => {
       const response = await mockSendToOps(ticket);
 
       // Update ticket status based on response
-      updateTicketStatus(
-        ticket.id,
-        response.success ? "sent" : "failed"
-      );
+      if (response.success) {
+        updateTicketStatus(ticket.id, "sent");
+      } else {
+        updateTicketStatus(ticket.id, "failed");
+      }
 
       // Add log entry
       addLogEntry({
@@ -153,6 +158,86 @@ export const TicketProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // New method to query ticket status
+  const queryTicketStatus = async (id: string): Promise<ApiResponse> => {
+    try {
+      const ticket = getTicket(id);
+      
+      if (!ticket) {
+        const errorResponse: ApiResponse = {
+          success: false,
+          message: "Ticket not found",
+          timestamp: new Date().toISOString(),
+        };
+        return errorResponse;
+      }
+
+      // Only query status for tickets that have been sent
+      if (ticket.status !== "sent" && 
+          ticket.status !== "in_progress" && 
+          ticket.status !== "closed" && 
+          ticket.status !== "delayed") {
+        const errorResponse: ApiResponse = {
+          success: false,
+          message: `Cannot query status for ticket in '${ticket.status}' state`,
+          timestamp: new Date().toISOString(),
+        };
+        return errorResponse;
+      }
+
+      // Call mock API to query status
+      const response = await mockQueryTicketStatus(id);
+
+      if (response.success && response.data?.status) {
+        // Update ticket status based on API response
+        updateTicketStatus(id, response.data.status);
+        
+        // Add log entry
+        addLogEntry({
+          ticketId: id,
+          action: "query",
+          status: "success",
+          timestamp: new Date().toISOString(),
+          response,
+        });
+      }
+
+      // Show toast notification
+      toast({
+        title: response.success ? "Status Updated" : "Error",
+        description: response.message,
+        variant: response.success ? "default" : "destructive",
+      });
+
+      return response;
+    } catch (error) {
+      const errorResponse: ApiResponse = {
+        success: false,
+        message: "Error querying ticket status",
+        data: { error: error instanceof Error ? error.message : String(error) },
+        timestamp: new Date().toISOString(),
+      };
+
+      // Add log entry
+      addLogEntry({
+        ticketId: id,
+        action: "query",
+        status: "failed",
+        timestamp: new Date().toISOString(),
+        response: errorResponse,
+      });
+
+      // Show error toast
+      toast({
+        title: "Error",
+        description: "Failed to query ticket status",
+        variant: "destructive",
+      });
+
+      return errorResponse;
+    }
+  };
+
   const value = {
     tickets,
     logs,
@@ -161,6 +246,7 @@ export const TicketProvider = ({ children }: { children: ReactNode }) => {
     getTicket,
     getTicketLogs,
     sendTicketToOps,
+    queryTicketStatus,
     updateTicketStatus,
     addLogEntry,
   };

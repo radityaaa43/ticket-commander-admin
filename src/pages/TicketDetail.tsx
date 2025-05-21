@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTickets } from "@/context/TicketContext";
@@ -40,9 +39,13 @@ import {
   ArrowLeft, 
   AlertTriangle, 
   Check, 
-  RefreshCw 
+  RefreshCw,
+  Circle,
+  Loader,
+  Clock,
+  X
 } from "lucide-react";
-import { LogEntry } from "@/lib/types";
+import { LogEntry, TicketStatus } from "@/lib/types";
 import { Separator } from "@/components/ui/separator";
 
 const StatusBadge = ({ status }: { status: string }) => {
@@ -50,18 +53,35 @@ const StatusBadge = ({ status }: { status: string }) => {
     new: "bg-ticket-new text-white",
     pending: "bg-ticket-pending text-white animate-pulse-slow",
     sent: "bg-ticket-sent text-white",
+    in_progress: "bg-primary text-primary-foreground",
+    closed: "bg-green-600 text-white",
+    delayed: "bg-amber-500 text-white",
     failed: "bg-ticket-failed text-white",
   };
   
-  const statuses = {
+  const statuses: Record<string, string> = {
     new: "New",
     pending: "Pending",
     sent: "Sent to OPS",
+    in_progress: "In Progress",
+    closed: "Closed",
+    delayed: "Delayed",
     failed: "Failed",
   };
 
+  const statusIcons = {
+    new: <Circle className="h-4 w-4 mr-1" />,
+    pending: <Loader className="h-4 w-4 mr-1 animate-spin" />,
+    sent: <Send className="h-4 w-4 mr-1" />,
+    in_progress: <Loader className="h-4 w-4 mr-1" />,
+    closed: <Check className="h-4 w-4 mr-1" />,
+    delayed: <Clock className="h-4 w-4 mr-1" />,
+    failed: <X className="h-4 w-4 mr-1" />,
+  };
+
   return (
-    <Badge className={variants[status as keyof typeof variants]}>
+    <Badge className={`${variants[status as keyof typeof variants]} flex items-center`}>
+      {statusIcons[status as keyof typeof statusIcons]}
       {statuses[status as keyof typeof statuses]}
     </Badge>
   );
@@ -119,8 +139,9 @@ const LogItem = ({ log }: { log: LogEntry }) => {
 const TicketDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getTicket, getTicketLogs, sendTicketToOps, isLoading } = useTickets();
+  const { getTicket, getTicketLogs, sendTicketToOps, queryTicketStatus, isLoading } = useTickets();
   const [sending, setSending] = useState(false);
+  const [querying, setQuerying] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   
   const ticket = getTicket(id || "");
@@ -181,6 +202,16 @@ const TicketDetail = () => {
     }
   };
   
+  const handleQueryStatus = async () => {
+    if (!id) return;
+    try {
+      setQuerying(true);
+      await queryTicketStatus(id);
+    } finally {
+      setQuerying(false);
+    }
+  };
+  
   // Prepare payload preview (this is what would be sent to OPS)
   const payloadPreview = {
     ticket_id: ticket.id,
@@ -197,6 +228,13 @@ const TicketDetail = () => {
     metadata: ticket.metadata || {}
   };
   
+  // Determine if we can query status for this ticket
+  const canQueryStatus = ticket && (
+    ticket.status === "sent" || 
+    ticket.status === "in_progress" || 
+    ticket.status === "delayed"
+  );
+  
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -210,7 +248,7 @@ const TicketDetail = () => {
             Back to Tickets
           </Button>
         </div>
-        <StatusBadge status={ticket.status} />
+        <StatusBadge status={ticket?.status || "new"} />
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -218,61 +256,77 @@ const TicketDetail = () => {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>{ticket.subject}</CardTitle>
-                <CardDescription>Ticket {ticket.id}</CardDescription>
+                <CardTitle>{ticket?.subject}</CardTitle>
+                <CardDescription>Ticket {ticket?.id}</CardDescription>
               </div>
-              {ticket.status !== "sent" && (
-                <AlertDialog open={previewOpen} onOpenChange={setPreviewOpen}>
-                  <AlertDialogTrigger asChild>
-                    <Button 
-                      disabled={sending || ticket.status === "pending"}
-                      className="flex items-center"
-                    >
-                      <Send className="h-4 w-4 mr-2" />
-                      Send to OPS
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Send Ticket to OPS</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        You are about to send this ticket to the OPS system. Please review the data below.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <div className="bg-gray-50 p-3 rounded">
-                      <pre className="text-xs overflow-auto">
-                        {JSON.stringify(payloadPreview, null, 2)}
-                      </pre>
-                    </div>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={handleSendToOps}
-                        disabled={sending}
+              <div className="flex items-center space-x-2">
+                {ticket?.status !== "sent" && ticket?.status !== "in_progress" && ticket?.status !== "closed" && (
+                  <AlertDialog open={previewOpen} onOpenChange={setPreviewOpen}>
+                    <AlertDialogTrigger asChild>
+                      <Button 
+                        disabled={sending || ticket?.status === "pending"}
+                        className="flex items-center"
                       >
-                        {sending && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
-                        Confirm Send
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-              
-              {ticket.status === "failed" && logs.length > 0 && (
-                <Button 
-                  variant="outline"
-                  onClick={handleSendToOps}
-                  disabled={sending}
-                  className="ml-2"
-                >
-                  {sending ? (
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                  )}
-                  Retry
-                </Button>
-              )}
+                        <Send className="h-4 w-4 mr-2" />
+                        Send to OPS
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Send Ticket to OPS</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          You are about to send this ticket to the OPS system. Please review the data below.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <div className="bg-gray-50 p-3 rounded">
+                        <pre className="text-xs overflow-auto">
+                          {JSON.stringify(payloadPreview, null, 2)}
+                        </pre>
+                      </div>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleSendToOps}
+                          disabled={sending}
+                        >
+                          {sending && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
+                          Confirm Send
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+                
+                {canQueryStatus && (
+                  <Button 
+                    variant="outline"
+                    onClick={handleQueryStatus}
+                    disabled={querying}
+                  >
+                    {querying ? (
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                    )}
+                    Query Status
+                  </Button>
+                )}
+                
+                {ticket?.status === "failed" && logs.length > 0 && (
+                  <Button 
+                    variant="outline"
+                    onClick={handleSendToOps}
+                    disabled={sending}
+                  >
+                    {sending ? (
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                    )}
+                    Retry
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -368,11 +422,21 @@ const TicketDetail = () => {
           </CardContent>
           <CardFooter className="border-t pt-4 flex justify-between">
             <div className="text-sm text-muted-foreground">
-              Ticket ID: {ticket.id}
+              Ticket ID: {ticket?.id}
             </div>
-            {ticket.status === "sent" && (
+            {ticket?.status === "closed" && (
               <Badge variant="outline" className="bg-green-50">
-                Successfully sent to OPS
+                <Check className="mr-2 h-4 w-4" /> Successfully processed
+              </Badge>
+            )}
+            {ticket?.status === "in_progress" && (
+              <Badge variant="outline" className="bg-blue-50">
+                <Loader className="mr-2 h-4 w-4 animate-spin" /> In progress at OPS
+              </Badge>
+            )}
+            {ticket?.status === "delayed" && (
+              <Badge variant="outline" className="bg-yellow-50">
+                <Clock className="mr-2 h-4 w-4" /> Delayed at OPS
               </Badge>
             )}
           </CardFooter>
@@ -402,7 +466,9 @@ const TicketDetail = () => {
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium">
-                        {log.action === "send" ? "Sent to OPS" : "Retry attempt"}
+                        {log.action === "send" ? "Sent to OPS" : 
+                         log.action === "retry" ? "Retry attempt" :
+                         log.action === "query" ? "Status query" : "Action"}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         {new Date(log.timestamp).toLocaleString()}
@@ -418,10 +484,26 @@ const TicketDetail = () => {
             )}
           </CardContent>
           <CardFooter className="flex justify-center">
-            {ticket.status === "new" && (
+            {ticket?.status === "new" && (
               <div className="text-sm text-muted-foreground text-center">
                 This ticket has not been sent to OPS yet.
               </div>
+            )}
+            {canQueryStatus && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleQueryStatus}
+                disabled={querying}
+                className="w-full"
+              >
+                {querying ? (
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                )}
+                Update Status from OPS
+              </Button>
             )}
           </CardFooter>
         </Card>
