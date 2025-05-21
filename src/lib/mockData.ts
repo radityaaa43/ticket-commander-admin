@@ -1,5 +1,4 @@
-
-import { Ticket, LogEntry, DashboardStats } from "./types";
+import { Ticket, LogEntry, DashboardStats, ApiResponse } from "./types";
 
 // Generate random ID
 const generateId = () => Math.random().toString(36).substring(2, 10);
