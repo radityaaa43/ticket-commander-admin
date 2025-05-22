@@ -1,3 +1,4 @@
+
 export type TicketStatus = 'new' | 'pending' | 'sent' | 'in_progress' | 'closed' | 'delayed' | 'failed';
 
 export interface Ticket {
@@ -27,7 +28,7 @@ export interface ApiResponse {
 export interface LogEntry {
   id: string;
   ticketId: string;
-  action: 'send' | 'retry';
+  action: 'send' | 'retry' | 'query';
   status: 'success' | 'failed';
   timestamp: string;
   response: ApiResponse;

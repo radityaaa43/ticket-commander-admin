@@ -127,6 +127,9 @@ export const calculateDashboardStats = (tickets: Ticket[]): DashboardStats => {
     new: 0,
     pending: 0,
     sent: 0,
+    in_progress: 0,
+    closed: 0,
+    delayed: 0,
     failed: 0,
   };
   
