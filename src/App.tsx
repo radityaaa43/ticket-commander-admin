@@ -13,7 +13,6 @@ import NotFound from "./pages/NotFound";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { TicketProvider } from "./context/TicketContext";
 
 const queryClient = new QueryClient();
 
@@ -62,13 +61,11 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <BrowserRouter>
       <AuthProvider>
-        <TicketProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <AppRoutes />
-          </TooltipProvider>
-        </TicketProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <AppRoutes />
+        </TooltipProvider>
       </AuthProvider>
     </BrowserRouter>
   </QueryClientProvider>
