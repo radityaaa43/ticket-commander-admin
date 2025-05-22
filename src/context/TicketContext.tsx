@@ -1,6 +1,5 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import mockData, { mockSendToOps, mockQueryTicketStatus } from "@/lib/mockData";
+import { ticketService } from "@/services";
 import { Ticket, LogEntry, ApiResponse, DashboardStats } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 
@@ -35,13 +34,22 @@ export const TicketProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate loading data from an API
+    // Fetch data from backend service
     const loadData = async () => {
       try {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setTickets(mockData.tickets);
-        setLogs(mockData.logs);
-        setStats(mockData.stats);
+        setIsLoading(true);
+        const fetchedTickets = await ticketService.fetchAllTickets();
+        setTickets(fetchedTickets);
+        
+        // In a real application, you'd also fetch logs from the backend
+        // For now, we'll keep using mock logs
+        // const fetchedLogs = await ticketService.fetchLogs();
+        // setLogs(fetchedLogs);
+        
+        // Calculate stats from fetched tickets
+        const calculatedStats = calculateStats(fetchedTickets);
+        setStats(calculatedStats);
+        
         setIsLoading(false);
       } catch (error) {
         console.error("Error loading data:", error);
@@ -56,6 +64,27 @@ export const TicketProvider = ({ children }: { children: ReactNode }) => {
 
     loadData();
   }, []);
+
+  // Calculate dashboard stats from tickets
+  const calculateStats = (ticketList: Ticket[]): DashboardStats => {
+    const stats: DashboardStats = {
+      total: ticketList.length,
+      new: 0,
+      pending: 0,
+      sent: 0,
+      in_progress: 0,
+      closed: 0,
+      delayed: 0,
+      failed: 0,
+    };
+
+    // Count tickets by status
+    ticketList.forEach(ticket => {
+      stats[ticket.status]++;
+    });
+
+    return stats;
+  };
 
   const getTicket = (id: string) => {
     return tickets.find(ticket => ticket.id === id);
@@ -100,8 +129,8 @@ export const TicketProvider = ({ children }: { children: ReactNode }) => {
       // Update ticket status to pending
       updateTicketStatus(ticket.id, "pending");
 
-      // Call mock API
-      const response = await mockSendToOps(ticket);
+      // Call backend service
+      const response = await ticketService.sendTicketToOps(ticket);
 
       // Update ticket status based on response
       if (response.success) {
@@ -158,7 +187,7 @@ export const TicketProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // New method to query ticket status
+  // Query ticket status from backend
   const queryTicketStatus = async (id: string): Promise<ApiResponse> => {
     try {
       const ticket = getTicket(id);
@@ -185,8 +214,8 @@ export const TicketProvider = ({ children }: { children: ReactNode }) => {
         return errorResponse;
       }
 
-      // Call mock API to query status
-      const response = await mockQueryTicketStatus(id);
+      // Call backend service to query status
+      const response = await ticketService.queryTicketStatus(id);
 
       if (response.success && response.data?.status) {
         // Update ticket status based on API response
